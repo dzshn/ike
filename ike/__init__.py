@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import ast
 import inspect
+import sys
 import textwrap
-from ast import BinOp, Expr
+from ast import BinOp, Constant, Expr, LShift, MatMult, Mod, Name
 
 import opcode
 
@@ -25,13 +26,13 @@ def byc(func: type(byc)) -> type(byc):
     for node in body:
         if type(node) is Expr:
             node = node.value
-            if type(node) is BinOp and type(node.op) is ast.LShift:
+            if type(node) is BinOp and type(node.op) is LShift:
                 labels[node.right.id] = bcount
                 node = node.left
-            if type(node) is BinOp and type(node.op) is ast.MatMult:
+            if type(node) is BinOp and type(node.op) is MatMult:
                 op = opcode.opmap[node.left.id]
                 if op in opcode.hasconst:
-                    if type(node.right) is not ast.Constant:
+                    if type(node.right) is not Constant:
                         node.right = ast.Constant(
                             eval(
                                 compile(
@@ -46,6 +47,8 @@ def byc(func: type(byc)) -> type(byc):
                     if node.right.value not in consts:
                         consts.append(node.right.value)
                 elif op in opcode.hasname:
+                    if type(node.right) is Constant:
+                        node.right = ast.Name(node.right.value)
                     if node.right.id not in names:
                         names.append(node.right.id)
                 elif op in opcode.haslocal:
@@ -58,9 +61,9 @@ def byc(func: type(byc)) -> type(byc):
     for node in body:
         if type(node) is Expr:
             node = node.value
-            if type(node) is BinOp and type(node.op) is ast.LShift:
+            if type(node) is BinOp and type(node.op) is LShift:
                 node = node.left
-            if type(node) is BinOp and type(node.op) is ast.MatMult:
+            if type(node) is BinOp and type(node.op) is MatMult:
                 op = opcode.opmap[node.left.id]
                 bytecode.append(op)
                 if op in opcode.hasconst:
@@ -77,7 +80,7 @@ def byc(func: type(byc)) -> type(byc):
                     bytecode.append(labels[node.right.id])
                 else:
                     bytecode.append(node.right.value)
-            elif type(node) is ast.BinOp and type(node.op) is ast.Mod:
+            elif type(node) is BinOp and type(node.op) is Mod:
                 op = opcode.opmap[node.left.id]
                 bytecode.append(op)
                 bytecode.append(
@@ -85,13 +88,13 @@ def byc(func: type(byc)) -> type(byc):
                         compile(
                             ast.Expression(node.right),
                             func.__code__.co_filename,
-                            "eval"
+                            "eval",
                         ),
                         func.__globals__,
-                        {}
+                        {},
                     )
                 )
-            elif type(node) is ast.Name:
+            elif type(node) is Name:
                 bytecode.extend((opcode.opmap[node.id], 0))
 
     stack_size = 0

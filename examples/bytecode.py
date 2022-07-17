@@ -59,6 +59,31 @@ def fib_iter(n: int) -> Iterator[int]:
     RETURN_VALUE
 
 
+@ike.byc
+def hai() -> None:
+    LOAD_CONST @ 0
+    LOAD_CONST @ None
+    IMPORT_NAME @ ctypes
+    LOAD_ATTR @ cdll
+    LOAD_ATTR @ "libc.so.6"
+    LOAD_ATTR @ syscall
+    LOAD_CONST @ 1
+    LOAD_CONST @ 1
+    LOAD_CONST @ 0
+    LOAD_CONST @ None
+    IMPORT_NAME @ ctypes
+    LOAD_ATTR @ c_char_p
+    LOAD_CONST @ b"hoi !\n"
+    CALL_FUNCTION @ 1
+    LOAD_CONST @ 6
+    CALL_FUNCTION @ 4
+
+    # POP_TOP
+    LOAD_CONST @ None
+    RETURN_VALUE
+
+
 print(f"{sqrt(2) = }")
 print(f"{[fib(i) for i in range(16)] = }")
 print(f"{list(fib_iter(16)) = }")
+# hai()  # <- try this if you have an unix system
