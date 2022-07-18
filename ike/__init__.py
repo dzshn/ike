@@ -10,6 +10,58 @@ import opcode
 
 
 def byc(func: type(byc)) -> type(byc):
+    """Induce a headache on the function caller.
+
+    Specification::
+        instruction   ::= opcode ["@" | "%" argument] ["<<" label]
+        opcode        ::= <Any identifier present in ``opcode.opmap``>
+        argument      ::= <Any valid expression>
+        raw_argument  ::= <Any expression resulting in an int>
+        label         ::= <Any valid identifier>
+
+    If the argument is not provided, it is regarded as 0. If provided using
+    ``%``, it is used as-is. ``@`` expects the following rules:
+
+    opcode.hascompare
+        A string in `opcode.cmp_op` is expected and converted to it's index.
+
+    opcode.hasconst
+        If the value is not yet in `co_consts`, it will be appended to it.
+
+    opcode.hasfree, opcode.haslocal, opcode.hasname
+        Either an identifier or a string is expected and appended to the
+        corresponding tuple (e.g. `co_varnames` for a `LOAD_FAST`).
+
+    opcode.hasjabs
+        A label is expected.
+
+    Warnings
+    --------
+    This allows you to work at a quite low level of Python's interpreter, keep
+    in mind that ANY errors you commit may result in a irrecoverable crash.
+
+    Notes
+    -----
+    This won't work in the builtin REPL because the function source code can't
+    be introspected. You can instead use IPython or write a script.
+
+    See Also
+    --------
+    dis, inspect
+
+    Examples
+    --------
+    >>> @ike.byc
+    ... def sqrt(n: float) -> float:
+    ...     LOAD_FAST @ n
+    ...     LOAD_CONST @ .5
+    ...     INPLACE_POWER
+    ...     RETURN_VALUE
+    ...
+    >>> sqrt(2)
+    1.4142135623730951
+    """
+
     # TODO: Parse `func.__code__` instead of it's source. (status: lazy)
 
     # XXX: Python < 3.6 has variable-size opcodes and will 100% fail here.
