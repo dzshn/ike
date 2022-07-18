@@ -1,4 +1,5 @@
 import ike
+import sys
 
 from collections.abc import Iterator
 
@@ -83,7 +84,39 @@ def hai() -> None:
     RETURN_VALUE
 
 
+def evil(address: int):
+    # Trick `PyTuple_GetItem` into reading an arbitrary `*PyObject` :3
+    # check the following for a full exploit
+    # <https://github.com/chilaxan/pysnippets/blob/main/native_ctypes/load_addr.py>
+
+    py_ssize_t_size = (None, ).__sizeof__() - tuple.__basicsize__
+
+    consts = ()
+    pointer = address.to_bytes(py_ssize_t_size, sys.byteorder)
+    offset = (
+        # Position of `address` inside `pointer`
+        (id(pointer) + bytes.__basicsize__ - 1)
+        # Start of `PyTupleObject.ob_item`
+        - (id(consts) + tuple.__basicsize__)
+    ) // py_ssize_t_size
+    # we do a little overflowing
+    a, b, c, d, e = offset.to_bytes(5, sys.byteorder, signed=True)
+
+    @ike.byc
+    def magic():
+        CONSTS = consts
+        EXTENDED_ARG % e
+        EXTENDED_ARG % d
+        EXTENDED_ARG % c
+        EXTENDED_ARG % b
+        LOAD_CONST % a
+        RETURN_VALUE
+
+    return magic()
+
+
 print(f"{sqrt(2) = }")
 print(f"{[fib(i) for i in range(16)] = }")
 print(f"{list(fib_iter(16)) = }")
 # hai()  # <- try this if you have an unix system
+print(f"{evil(id(ike)) = }")

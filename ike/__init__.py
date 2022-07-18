@@ -1,23 +1,34 @@
 from __future__ import annotations
 
 import ast
+import ctypes
 import inspect
 import sys
 import textwrap
-from ast import BinOp, Constant, Expr, LShift, MatMult, Mod, Name
+from ast import (Assign, AugAssign, BinOp, Constant, Expr, LShift, MatMult,
+                 Mod, Module, Name)
+from collections import ChainMap
 
 import opcode
+
+code = (lambda: 0 / 0).__code__.__class__
 
 
 def byc(func: type(byc)) -> type(byc):
     """Induce a headache on the function caller.
 
     Specification::
+        body          ::= (instruction | option)*
         instruction   ::= opcode ["@" | "%" argument] ["<<" label]
         opcode        ::= <Any identifier present in ``opcode.opmap``>
         argument      ::= <Any valid expression>
         raw_argument  ::= <Any expression resulting in an int>
         label         ::= <Any valid identifier>
+        option        ::= <Any assignment>
+
+    You may assign values to FLAGS, STACK_SIZE, NAMES, CONSTS, VARNAMES,
+    FREEVARS as necessary. These are created automatically for you but some
+    extra evilness is possible with this.
 
     If the argument is not provided, it is regarded as 0. If provided using
     ``%``, it is used as-is. ``@`` expects the following rules:
@@ -67,6 +78,8 @@ def byc(func: type(byc)) -> type(byc):
     # XXX: Python < 3.6 has variable-size opcodes and will 100% fail here.
     #      This code assumes we are not in a six-year-old python.
 
+    frame = sys._getframe().f_back  # hopefully(!) always the caller's frame
+
     body = ast.parse(textwrap.dedent(inspect.getsource(func))).body[0].body
     bytecode = bytearray()
     names = []
@@ -93,7 +106,7 @@ def byc(func: type(byc)) -> type(byc):
                                     "eval",
                                 ),
                                 func.__globals__,
-                                {},
+                                frame.f_locals,
                             ),
                         )
                     if node.right.value not in consts:
@@ -131,7 +144,17 @@ def byc(func: type(byc)) -> type(byc):
                 elif op in opcode.hasjabs:
                     bytecode.append(labels[node.right.id])
                 else:
-                    bytecode.append(node.right.value)
+                    bytecode.append(
+                        eval(
+                            compile(
+                                ast.Expression(node.right),
+                                func.__code__.co_filename,
+                                "eval",
+                            ),
+                            func.__globals__,
+                            frame.f_locals,
+                        )
+                    )
             elif type(node) is BinOp and type(node.op) is Mod:
                 op = opcode.opmap[node.left.id]
                 bytecode.append(op)
@@ -143,7 +166,7 @@ def byc(func: type(byc)) -> type(byc):
                             "eval",
                         ),
                         func.__globals__,
-                        {},
+                        frame.f_locals,
                     )
                 )
             elif type(node) is Name:
@@ -180,7 +203,34 @@ def byc(func: type(byc)) -> type(byc):
     flags |= og_flags & inspect.CO_VARKEYWORDS
     flags |= og_flags & inspect.CO_NESTED
 
-    func.__code__ = (lambda: 0 / 0).__code__.__class__(
+    opts = {
+        "FLAGS": flags,
+        "STACK_SIZE": stack_size,
+        "NAMES": names,
+        "CONSTS": consts,
+        "VARNAMES": vars,
+        "FREEVARS": freevars,
+    }
+    for node in body:
+        if type(node) is Assign or type(node) is AugAssign:
+            exec(
+                compile(
+                    Module([node], []),
+                    func.__code__.co_filename,
+                    "exec",
+                ),
+                {},
+                ChainMap(opts, frame.f_locals)
+            )
+
+    flags = opts["FLAGS"]
+    stack_size = opts["STACK_SIZE"]
+    names = opts["NAMES"]
+    consts = opts["CONSTS"]
+    vars = opts["VARNAMES"]
+    freevars = opts["FREEVARS"]
+
+    func.__code__ = code(
         func.__code__.co_argcount,
         func.__code__.co_posonlyargcount,
         func.__code__.co_kwonlyargcount,
@@ -188,8 +238,8 @@ def byc(func: type(byc)) -> type(byc):
         stack_size,
         flags,
         bytes(bytecode),
-        tuple(consts),
-        tuple(names),
+        consts,
+        names,
         vars,
         func.__code__.co_filename,
         func.__code__.co_name,
