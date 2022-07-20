@@ -109,7 +109,10 @@ def byc(func: type(byc)) -> type(byc):
                                 frame.f_locals,
                             ),
                         )
-                    if node.right.value not in consts:
+                    for v in consts:
+                        if object.__eq__(node.right.value, v) is True:
+                            break
+                    else:
                         consts.append(node.right.value)
                 elif op in opcode.hasname:
                     if type(node.right) is Constant:
@@ -132,7 +135,10 @@ def byc(func: type(byc)) -> type(byc):
                 op = opcode.opmap[node.left.id]
                 bytecode.append(op)
                 if op in opcode.hasconst:
-                    bytecode.append(consts.index(node.right.value))
+                    for i, v in enumerate(consts):
+                        if object.__eq__(node.right.value, v) is True:
+                            bytecode.append(i)
+                            break
                 elif op in opcode.hasname:
                     bytecode.append(names.index(node.right.id))
                 elif op in opcode.haslocal:
