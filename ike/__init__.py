@@ -79,13 +79,15 @@ def byc(func: type(byc)) -> type(byc):
     #      This code assumes we are not in a six-year-old python.
 
     frame = sys._getframe().f_back  # hopefully(!) always the caller's frame
+    co = func.__code__
+    arg_count = co.co_argcount + co.co_posonlyargcount + co.co_kwonlyargcount
 
     body = ast.parse(textwrap.dedent(inspect.getsource(func))).body[0].body
     bytecode = bytearray()
     names = []
     consts = []
-    vars = list(func.__code__.co_varnames)
-    freevars = func.__code__.co_freevars
+    vars = list(co.co_varnames[:arg_count])
+    freevars = co.co_freevars
     labels = {}
     bcount = 0
     for node in body:
@@ -102,7 +104,7 @@ def byc(func: type(byc)) -> type(byc):
                             eval(
                                 compile(
                                     ast.Expression(node.right),
-                                    func.__code__.co_filename,
+                                    co.co_filename,
                                     "eval",
                                 ),
                                 func.__globals__,
@@ -154,7 +156,7 @@ def byc(func: type(byc)) -> type(byc):
                         eval(
                             compile(
                                 ast.Expression(node.right),
-                                func.__code__.co_filename,
+                                co.co_filename,
                                 "eval",
                             ),
                             func.__globals__,
@@ -168,7 +170,7 @@ def byc(func: type(byc)) -> type(byc):
                     eval(
                         compile(
                             ast.Expression(node.right),
-                            func.__code__.co_filename,
+                            co.co_filename,
                             "eval",
                         ),
                         func.__globals__,
@@ -222,11 +224,11 @@ def byc(func: type(byc)) -> type(byc):
             exec(
                 compile(
                     Module([node], []),
-                    func.__code__.co_filename,
+                    co.co_filename,
                     "exec",
                 ),
                 {},
-                ChainMap(opts, frame.f_locals)
+                ChainMap(opts, frame.f_locals),
             )
 
     flags = opts["FLAGS"]
@@ -237,9 +239,9 @@ def byc(func: type(byc)) -> type(byc):
     freevars = opts["FREEVARS"]
 
     func.__code__ = code(
-        func.__code__.co_argcount,
-        func.__code__.co_posonlyargcount,
-        func.__code__.co_kwonlyargcount,
+        co.co_argcount,
+        co.co_posonlyargcount,
+        co.co_kwonlyargcount,
         len(vars),
         stack_size,
         flags,
@@ -247,9 +249,9 @@ def byc(func: type(byc)) -> type(byc):
         consts,
         names,
         vars,
-        func.__code__.co_filename,
-        func.__code__.co_name,
-        func.__code__.co_firstlineno,
+        co.co_filename,
+        co.co_name,
+        co.co_firstlineno,
         bytes(),  # TODO: actually do this
         freevars,
     )
