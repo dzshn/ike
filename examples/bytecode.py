@@ -43,6 +43,7 @@ def fib_iter(n: int) -> Iterator[int]:
 
     LOAD_FAST @ a << LOOP
     YIELD_VALUE
+    POP_TOP
     LOAD_FAST @ b
     LOAD_FAST @ a
     LOAD_FAST @ b
